@@ -1,5 +1,7 @@
 # MISCALORIAS
 
+![Imagen de MISCALORIAS](miscalorias2.jpeg)
+
 Aplicación Android nativa para llevar un registro personal de comidas, con estimaciones nutricionales genéricas y clasificación de etiquetas visuales en el dispositivo.
 
 **Creador:** Evaristo Suarez Eichelmann  
