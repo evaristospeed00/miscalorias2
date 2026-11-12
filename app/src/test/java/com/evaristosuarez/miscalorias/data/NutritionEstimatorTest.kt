@@ -23,5 +23,16 @@ class NutritionEstimatorTest {
         assertThrows(IllegalArgumentException::class.java) {
             NutritionEstimator.forPortion(rice, 0)
         }
+        assertThrows(IllegalArgumentException::class.java) {
+            NutritionEstimator.forPortion(rice, 5001)
+        }
+    }
+
+    @Test
+    fun acceptsBoundaryPortions() {
+        val minPortion = NutritionEstimator.forPortion(rice, 1)
+        val maxPortion = NutritionEstimator.forPortion(rice, 5000)
+        assertEquals(1, minPortion.calories)
+        assertEquals(6500, maxPortion.calories)
     }
 }

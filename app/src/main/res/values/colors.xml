@@ -1,3 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="icon_background">#214A38</color>
+    <color name="warm_ivory">#F7F8F6</color>
+    <color name="warm_charcoal">#191C1A</color>
+    <color name="surface_dark">#191D1A</color>
+    <color name="icon_background">#111412</color>
 </resources>

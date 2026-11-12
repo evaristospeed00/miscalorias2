@@ -37,12 +37,17 @@ class FoodDatabase(context: Context) : SQLiteOpenHelper(context, "miscalorias.db
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) = Unit
 
     fun searchFoods(query: String): List<Food> {
-        val pattern = "%${query.trim().replace("%", "\\%").replace("_", "\\_")}%"
+        val trimmed = query.trim()
+        val escaped = trimmed
+            .replace("\\", "\\\\")
+            .replace("%", "\\%")
+            .replace("_", "\\_")
+        val pattern = "%$escaped%"
         val rows = readableDatabase.query(
             "foods",
             arrayOf("id", "name", "kcal", "protein", "carbs", "fat", "custom"),
-            if (query.isBlank()) null else "name LIKE ? ESCAPE '\\'",
-            if (query.isBlank()) null else arrayOf(pattern),
+            if (trimmed.isBlank()) null else "name LIKE ? ESCAPE '\\'",
+            if (trimmed.isBlank()) null else arrayOf(pattern),
             null,
             null,
             "custom ASC, name COLLATE NOCASE ASC",
@@ -68,13 +73,14 @@ class FoodDatabase(context: Context) : SQLiteOpenHelper(context, "miscalorias.db
     }
 
     fun addCustomFood(food: Food): Food {
-        require(food.name.isNotBlank()) { "Escribe un nombre para el alimento." }
-        require(food.caloriesPer100g in 0.0..2000.0)
-        require(food.proteinPer100g in 0.0..100.0)
-        require(food.carbsPer100g in 0.0..100.0)
-        require(food.fatPer100g in 0.0..100.0)
-        val id = writableDatabase.insertOrThrow("foods", null, foodValues(food.copy(custom = true)))
-        return food.copy(id = id, custom = true)
+        val trimmedName = food.name.trim()
+        require(trimmedName.isNotBlank()) { "Escribe un nombre para el alimento." }
+        require(food.caloriesPer100g in 0.0..2000.0) { "Las calorías deben estar entre 0 y 2000 kcal por 100 g." }
+        require(food.proteinPer100g in 0.0..100.0) { "La proteína debe estar entre 0 y 100 g por 100 g." }
+        require(food.carbsPer100g in 0.0..100.0) { "Los carbohidratos deben estar entre 0 y 100 g por 100 g." }
+        require(food.fatPer100g in 0.0..100.0) { "Las grasas deben estar entre 0 y 100 g por 100 g." }
+        val id = writableDatabase.insertOrThrow("foods", null, foodValues(food.copy(name = trimmedName, custom = true)))
+        return food.copy(id = id, name = trimmedName, custom = true)
     }
 
     fun addMeal(day: LocalDate, meal: String, food: Food, grams: Int): Long {

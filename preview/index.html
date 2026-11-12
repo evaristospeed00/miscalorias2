@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MISCALORIAS · vista Android</title>
+  <style>
+    :root { color-scheme: dark; font-family: system-ui, Segoe UI, sans-serif; background: #101713; color: #eff5ef; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 20px; }
+    main { width: min(100%, 560px); display: grid; justify-items: center; gap: 14px; }
+    h1 { margin: 0; font-size: 19px; letter-spacing: .04em; }
+    p { margin: 0; color: #b6c4b8; font-size: 13px; text-align: center; line-height: 1.5; }
+    .phone { width: auto; height: min(78vh, 800px); max-width: 100%; aspect-ratio: 9 / 20; justify-self: center; min-height: 400px; padding: 8px; border: 1px solid #536257; border-radius: 30px; background: #050706; box-shadow: 0 18px 70px #0009; }
+    .screen { width: 100%; height: 100%; overflow: hidden; border-radius: 23px; background: #080b09; display: grid; place-items: center; }
+    img { display: block; width: 100%; height: 100%; object-fit: contain; touch-action: none; user-select: none; -webkit-user-drag: none; }
+    .controls { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+    button { border: 1px solid #506657; border-radius: 10px; padding: 9px 14px; background: #21382b; color: #f3f8f3; font: inherit; cursor: pointer; }
+    button:hover { background: #2b4a38; }
+    #status { min-height: 18px; font-size: 12px; }
+    .hint { font-size: 11px; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>MISCALORIAS · vista Android</h1>
+    <p>Es la app real corriendo en el emulador. Toca o arrastra dentro de la pantalla para probarla.</p>
+    <div class="phone"><div class="screen"><img id="device" alt="Pantalla del emulador Android"></div></div>
+    <div class="controls">
+      <button id="upload" type="button">Elegir foto de PC</button>
+      <button id="back" type="button">Atrás</button>
+      <button id="home" type="button">Inicio</button>
+      <button id="refresh" type="button">Actualizar</button>
+    </div>
+    <input id="photo-file" type="file" accept="image/jpeg,image/png,image/webp,image/gif" hidden>
+    <p id="status">Conectando al emulador…</p>
+    <p class="hint">Elige una foto de tu PC para copiarla al emulador y selecciónala en el visor Android. También puedes tocar, arrastrar o usar la rueda del mouse.</p>
+  </main>
+  <script>
+    const image = document.getElementById('device');
+    const status = document.getElementById('status');
+    let pointerStart;
+    let lastMoveAt = 0;
+    let wheelDelta = 0;
+
+    function refresh() {
+      status.textContent = 'Conectando al emulador…';
+      image.src = `/stream?t=${Date.now()}`;
+    }
+
+    function screenPoint(event) {
+      const bounds = image.getBoundingClientRect();
+      const scale = Math.min(bounds.width / image.naturalWidth, bounds.height / image.naturalHeight);
+      const renderedWidth = image.naturalWidth * scale;
+      const renderedHeight = image.naturalHeight * scale;
+      const left = bounds.left + (bounds.width - renderedWidth) / 2;
+      const top = bounds.top + (bounds.height - renderedHeight) / 2;
+      return {
+        x: Math.max(0, Math.min(image.naturalWidth - 1, Math.round((event.clientX - left) / scale))),
+        y: Math.max(0, Math.min(image.naturalHeight - 1, Math.round((event.clientY - top) / scale)))
+      };
+    }
+
+    async function sendInput(input) {
+      try {
+        const response = await fetch('/input', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(input)
+        });
+        if (!response.ok) throw new Error('No se pudo enviar la acción al emulador.');
+      } catch (error) {
+        status.textContent = error.message;
+      }
+    }
+
+    image.addEventListener('load', () => {
+      status.textContent = 'Emulador conectado · video en vivo';
+    });
+    image.addEventListener('error', () => {
+      status.textContent = 'No se pudo conectar al video del emulador.';
+    });
+    image.addEventListener('pointerdown', event => {
+      if (image.naturalWidth) {
+        event.preventDefault();
+        pointerStart = screenPoint(event);
+        lastMoveAt = performance.now();
+        image.setPointerCapture(event.pointerId);
+        sendInput({ type: 'touch', phase: 'down', ...pointerStart });
+      }
+    });
+    image.addEventListener('pointermove', event => {
+      if (!pointerStart || performance.now() - lastMoveAt < 24) return;
+      lastMoveAt = performance.now();
+      sendInput({ type: 'touch', phase: 'move', ...screenPoint(event) });
+    });
+    image.addEventListener('pointerup', event => {
+      if (!pointerStart) return;
+      const end = screenPoint(event);
+      pointerStart = null;
+      sendInput({ type: 'touch', phase: 'up', ...end });
+    });
+    image.addEventListener('pointercancel', event => {
+      if (!pointerStart) return;
+      const end = screenPoint(event);
+      pointerStart = null;
+      sendInput({ type: 'touch', phase: 'up', ...end });
+    });
+    image.addEventListener('wheel', event => {
+      event.preventDefault();
+      wheelDelta += event.deltaY;
+      const ticks = Math.trunc(wheelDelta / 80);
+      if (!ticks) return;
+      wheelDelta -= ticks * 80;
+      sendInput({
+        type: 'wheel',
+        ...screenPoint(event),
+        delta: Math.max(-5, Math.min(5, -ticks))
+      });
+    }, { passive: false });
+    document.getElementById('back').addEventListener('click', () => sendInput({ type: 'key', code: 4 }));
+    document.getElementById('home').addEventListener('click', () => sendInput({ type: 'key', code: 3 }));
+    document.getElementById('refresh').addEventListener('click', refresh);
+    const photoFile = document.getElementById('photo-file');
+    document.getElementById('upload').addEventListener('click', () => photoFile.click());
+    photoFile.addEventListener('change', async () => {
+      const file = photoFile.files[0];
+      if (!file) return;
+      status.textContent = `Copiando ${file.name} al emulador…`;
+      try {
+        const response = await fetch('/upload', {
+          method: 'POST',
+          headers: { 'Content-Type': file.type || 'application/octet-stream' },
+          body: file
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || 'No se pudo copiar la foto.');
+        status.textContent = 'Foto copiada. Selecciónala en Fotos recientes del selector Android.';
+      } catch (error) {
+        status.textContent = error.message;
+      } finally {
+        photoFile.value = '';
+      }
+    });
+    window.addEventListener('keydown', event => {
+      if (event.ctrlKey || event.altKey || event.metaKey) return;
+      if (/^[a-zA-Z0-9 .@_-]$/.test(event.key)) {
+        event.preventDefault();
+        sendInput({ type: 'text', text: event.key });
+      } else {
+        const keys = { Enter: 66, Backspace: 67, ' ': 62, Escape: 4 };
+        if (keys[event.key]) {
+          event.preventDefault();
+          sendInput({ type: 'key', code: keys[event.key] });
+        }
+      }
+    });
+
+    refresh();
+  </script>
+</body>
+</html>

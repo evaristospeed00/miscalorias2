@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="MiscaloriasThemeBase" parent="android:style/Theme.Material.NoActionBar">
+        <item name="android:fontFamily">sans-serif</item>
+        <item name="android:colorAccent">#D97706</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:statusBarColor">@color/warm_charcoal</item>
+        <item name="android:navigationBarColor">@color/surface_dark</item>
+        <item name="android:windowBackground">@color/warm_charcoal</item>
+        <item name="android:windowActionModeOverlay">true</item>
+        <item name="postSplashScreenTheme">@style/Theme.Miscalorias</item>
+    </style>
+    <style name="Theme.Miscalorias" parent="@style/MiscaloriasThemeBase" />
+</resources>

@@ -1,17 +1,21 @@
 package com.evaristosuarez.miscalorias
 
+import android.content.Intent
+import android.graphics.BitmapFactory
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
-import androidx.core.content.edit
-import androidx.compose.foundation.background
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -20,65 +24,74 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Snackbar
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
-import androidx.compose.material3.lightColorScheme
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import androidx.core.content.edit
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import com.evaristosuarez.miscalorias.data.Food
 import com.evaristosuarez.miscalorias.data.FoodDatabase
 import com.evaristosuarez.miscalorias.data.MealEntry
 import com.evaristosuarez.miscalorias.data.Nutrition
 import com.evaristosuarez.miscalorias.data.NutritionEstimator
 import com.evaristosuarez.miscalorias.recognition.FoodImageLabeler
+import com.evaristosuarez.miscalorias.ui.components.AppCard
+import com.evaristosuarez.miscalorias.ui.components.AppTopBar
+import com.evaristosuarez.miscalorias.ui.components.BottomNavBar
+import com.evaristosuarez.miscalorias.ui.components.CalorieHeroCard
+import com.evaristosuarez.miscalorias.ui.components.Chip
+import com.evaristosuarez.miscalorias.ui.components.EmptyStateCard
+import com.evaristosuarez.miscalorias.ui.components.Eyebrow
+import com.evaristosuarez.miscalorias.ui.components.MacroStat
+import com.evaristosuarez.miscalorias.ui.components.PrimaryButton
+import com.evaristosuarez.miscalorias.ui.components.QuietTextButton
+import com.evaristosuarez.miscalorias.ui.components.SecondaryButton
+import com.evaristosuarez.miscalorias.ui.components.SectionHeader
+import com.evaristosuarez.miscalorias.ui.components.SuggestionBadge
+import com.evaristosuarez.miscalorias.ui.theme.CarbsAccent
+import com.evaristosuarez.miscalorias.ui.theme.FatAccent
+import com.evaristosuarez.miscalorias.ui.theme.MisCaloriasTheme
+import com.evaristosuarez.miscalorias.ui.theme.NumericTitle
+import com.evaristosuarez.miscalorias.ui.theme.ProteinAccent
+import com.evaristosuarez.miscalorias.ui.theme.Spacing
+import com.evaristosuarez.miscalorias.vision.ArDepthCaptureActivity
+import com.evaristosuarez.miscalorias.vision.DepthCapturePayload
 import com.google.mlkit.vision.label.ImageLabel
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-private val Ink = Color(0xFF20352A)
-private val Leaf = Color(0xFF28573F)
-private val Paper = Color(0xFFF5F3EA)
-private val Clay = Color(0xFFD47C55)
-private val Muted = Color(0xFF6D776F)
-private val PaleGreen = Color(0xFFE6EDE4)
 private val SpanishLocale = Locale.forLanguageTag("es-MX")
 
 class MainActivity : ComponentActivity() {
@@ -97,16 +110,48 @@ class MainActivity : ComponentActivity() {
                     ActivityResultContracts.PickVisualMedia(),
                 ) { uri ->
                     if (uri != null) {
-                        analyzeImage { complete ->
+                        analyzeImage(process = { complete ->
                             imageLabeler.analyze(uri, complete)
-                        }
+                        })
                     }
                 }
                 val camera = rememberLauncherForActivityResult(
                     ActivityResultContracts.TakePicturePreview(),
                 ) { bitmap ->
                     if (bitmap != null) {
-                        analyzeImage { complete -> imageLabeler.analyze(bitmap, complete) }
+                        analyzeImage(process = { complete -> imageLabeler.analyze(bitmap, complete) })
+                    }
+                }
+                val depthCamera = rememberLauncherForActivityResult(
+                    ActivityResultContracts.StartActivityForResult(),
+                ) { result ->
+                    if (result.resultCode == RESULT_OK && result.data != null) {
+                        val payload = DepthCapturePayload.fromIntent(result.data!!)
+                        val bitmap = payload?.rgbFile?.takeIf { it.isFile }?.let {
+                            BitmapFactory.decodeFile(it.absolutePath)
+                        }
+                        if (payload == null || bitmap == null) {
+                            payload?.deleteFiles()
+                            onRecognitionResult?.invoke(
+                                emptyList(),
+                                "No se pudo leer la foto capturada. Intenta de nuevo.",
+                            )
+                        } else {
+                            analyzeImage(
+                                process = { complete -> imageLabeler.analyze(bitmap, complete) },
+                                onFinished = {
+                                    bitmap.recycle()
+                                    payload.deleteFiles()
+                                },
+                            )
+                        }
+                    } else if (
+                        result.data?.getBooleanExtra(
+                            DepthCapturePayload.EXTRA_FALLBACK_TO_SYSTEM_CAMERA,
+                            false,
+                        ) == true
+                    ) {
+                        camera.launch(null)
                     }
                 }
                 FoodDiaryApp(
@@ -114,32 +159,41 @@ class MainActivity : ComponentActivity() {
                     onPickPhoto = {
                         picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
                     },
-                    onTakePhoto = { camera.launch(null) },
+                    onTakePhoto = {
+                        depthCamera.launch(Intent(this@MainActivity, ArDepthCaptureActivity::class.java))
+                    },
                 )
             }
         }
     }
 
-    private fun analyzeImage(process: ((Result<List<ImageLabel>>) -> Unit) -> Unit) {
+    private fun analyzeImage(
+        process: ((Result<List<ImageLabel>>) -> Unit) -> Unit,
+        onFinished: () -> Unit = {},
+    ) {
         // The labels and the source image stay on-device and are discarded after the suggestion.
         val activity = this
         process { result ->
             activity.runOnUiThread {
-                result.fold(
-                    onSuccess = { labels ->
-                        val suggestions = labels
-                            .filter { it.confidence >= 0.25f }
-                            .take(6)
-                            .map { displayLabel(it.text) }
-                        onRecognitionResult?.invoke(
-                            suggestions,
-                            if (suggestions.isEmpty()) "No se obtuvieron etiquetas claras. Puedes buscar o escribir el alimento." else null,
-                        )
-                    },
-                    onFailure = { error ->
-                        onRecognitionResult?.invoke(emptyList(), "No se pudo analizar la imagen: ${error.localizedMessage ?: "intenta otra vez"}")
-                    },
-                )
+                try {
+                    result.fold(
+                        onSuccess = { labels ->
+                            val suggestions = labels
+                                .filter { it.confidence >= 0.25f }
+                                .take(6)
+                                .map { displayLabel(it.text) }
+                            onRecognitionResult?.invoke(
+                                suggestions,
+                                if (suggestions.isEmpty()) "No se obtuvieron etiquetas claras. Puedes buscar o escribir el alimento." else null,
+                            )
+                        },
+                        onFailure = { error ->
+                            onRecognitionResult?.invoke(emptyList(), "No se pudo analizar la imagen: ${error.localizedMessage ?: "intenta otra vez"}")
+                        },
+                    )
+                } finally {
+                    onFinished()
+                }
             }
         }
     }
@@ -151,22 +205,6 @@ class MainActivity : ComponentActivity() {
         if (::database.isInitialized) database.close()
         super.onDestroy()
     }
-}
-
-@Composable
-private fun MisCaloriasTheme(content: @Composable () -> Unit) {
-    MaterialTheme(
-        colorScheme = lightColorScheme(
-            primary = Leaf,
-            onPrimary = Color.White,
-            secondary = Clay,
-            background = Paper,
-            surface = Color.White,
-            onSurface = Ink,
-            onBackground = Ink,
-        ),
-        content = content,
-    )
 }
 
 private enum class Section(val title: String) {
@@ -181,7 +219,7 @@ private fun FoodDiaryApp(
     onPickPhoto: () -> Unit,
     onTakePhoto: () -> Unit,
 ) {
-    val context = androidx.compose.ui.platform.LocalContext.current
+    val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var section by rememberSaveable { mutableStateOf(Section.TODAY) }
     var selectedDay by rememberSaveable { mutableStateOf(LocalDate.now()) }
@@ -211,35 +249,42 @@ private fun FoodDiaryApp(
             recognitionError = null
         }
     }
-    if (activity != null) {
-        activity.onRecognitionResult = { labels, error ->
-            recognizedLabels = labels
-            recognitionError = error
-            showFoodDialog = true
+    DisposableEffect(activity) {
+        if (activity != null) {
+            activity.onRecognitionResult = { labels, error ->
+                recognizedLabels = labels
+                recognitionError = error
+                showFoodDialog = true
+            }
+        }
+        onDispose {
+            if (activity != null) {
+                activity.onRecognitionResult = null
+            }
         }
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
         Surface(
-            modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing),
-            color = Paper,
+            modifier = Modifier
+                .fillMaxSize()
+                .windowInsetsPadding(WindowInsets.safeDrawing),
+            color = MaterialTheme.colorScheme.background,
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 22.dp, vertical = 16.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column {
-                        Text("MISCALORIAS", color = Leaf, fontWeight = FontWeight.Black, fontSize = 14.sp, letterSpacing = 2.sp)
-                        Text("Por Evaristo Suarez Eichelmann", color = Muted, fontSize = 11.sp)
-                    }
-                    TextButton(onClick = { showSettings = true }) { Text("Ajustes") }
-                }
+                AppTopBar(
+                    brand = "miscalorIAs",
+                    subtitle = "DIARIO DE ALIMENTACIÓN",
+                    actionLabel = "Ajustes",
+                    onAction = { showSettings = true },
+                )
 
                 Column(
-                    modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 20.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                    modifier = Modifier
+                        .weight(1f)
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = Spacing.lg),
+                    verticalArrangement = Arrangement.spacedBy(Spacing.md),
                 ) {
                     when (section) {
                         Section.TODAY -> TodayScreen(
@@ -262,89 +307,95 @@ private fun FoodDiaryApp(
                         Section.HISTORY -> HistoryScreen(
                             selectedDay = selectedDay,
                             database = database,
+                            refresh = refresh,
                             onSelectDay = { selectedDay = it; section = Section.TODAY },
                         )
-                        Section.FOODS -> FoodLibraryScreen(database)
+                        Section.FOODS -> FoodLibraryScreen(database = database, refresh = refresh)
                     }
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(Spacing.xs))
                 }
 
-                Row(
-                    modifier = Modifier.fillMaxWidth().background(Color.White).padding(horizontal = 12.dp, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.SpaceEvenly,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Section.entries.forEach { item ->
-                        TextButton(onClick = { section = item }) {
-                            Text(
-                                item.title,
-                                color = if (section == item) Leaf else Muted,
-                                fontWeight = if (section == item) FontWeight.Bold else FontWeight.Normal,
-                            )
+                BottomNavBar(
+                    items = Section.entries.map { it.title to (section == it) },
+                    onSelect = { index -> section = Section.entries[index] },
+                    actionLabel = "+ Comida",
+                    onAction = { showFoodDialog = true },
+                )
+            }
+        }
+
+        if (showFoodDialog) {
+            FoodEntryDialog(
+                database = database,
+                refresh = refresh,
+                recognizedLabels = recognizedLabels,
+                recognitionError = recognitionError,
+                onPickPhoto = onPickPhoto,
+                onTakePhoto = onTakePhoto,
+                onDismiss = { showFoodDialog = false },
+                onAdd = { food, grams, meal ->
+                    scope.launch {
+                        try {
+                            withContext(Dispatchers.IO) { database.addMeal(selectedDay, meal, food, grams) }
+                            refresh++
+                            showFoodDialog = false
+                            toast = "Comida agregada a tu registro"
+                        } catch (error: Exception) {
+                            toast = "No se pudo guardar la comida: ${error.localizedMessage ?: "error de almacenamiento"}"
                         }
                     }
-                    Button(onClick = { showFoodDialog = true }) { Text("+ Comida") }
+                },
+                onFoodCreated = { refresh++ },
+            )
+        }
+
+        if (showSettings) {
+            SettingsDialog(
+                initialTarget = targetCalories,
+                onDismiss = { showSettings = false },
+                onSave = { value ->
+                    targetCalories = value
+                    context.getSharedPreferences("settings", 0).edit { putInt("target_calories", value) }
+                    showSettings = false
+                },
+                onClear = {
+                    scope.launch {
+                        try {
+                            withContext(Dispatchers.IO) { database.clearMeals() }
+                            refresh++
+                            showSettings = false
+                            toast = "Se borraron tus registros de comidas"
+                        } catch (error: Exception) {
+                            toast = "No se pudieron borrar los registros: ${error.localizedMessage ?: "error de almacenamiento"}"
+                        }
+                    }
+                },
+            )
+        }
+
+        AnimatedVisibility(
+            visible = toast != null,
+            enter = fadeIn(),
+            exit = fadeOut(),
+            modifier = Modifier.align(Alignment.BottomCenter),
+        ) {
+            if (toast != null) {
+                LaunchedEffect(toast) {
+                    delay(2200)
+                    toast = null
+                }
+                Snackbar(
+                    modifier = Modifier.padding(Spacing.md),
+                    action = {
+                        QuietTextButton(text = "Cerrar", onClick = { toast = null })
+                    },
+                    containerColor = MaterialTheme.colorScheme.inverseSurface,
+                    contentColor = MaterialTheme.colorScheme.inverseOnSurface,
+                ) {
+                    Text(toast.orEmpty(), style = MaterialTheme.typography.bodyMedium)
                 }
             }
         }
-    if (showFoodDialog) {
-        FoodEntryDialog(
-            database = database,
-            recognizedLabels = recognizedLabels,
-            recognitionError = recognitionError,
-            onPickPhoto = onPickPhoto,
-            onTakePhoto = onTakePhoto,
-            onDismiss = { showFoodDialog = false },
-            onAdd = { food, grams, meal ->
-                scope.launch {
-                    try {
-                        withContext(Dispatchers.IO) { database.addMeal(selectedDay, meal, food, grams) }
-                        refresh++
-                        showFoodDialog = false
-                        toast = "Comida agregada a tu registro"
-                    } catch (error: Exception) {
-                        toast = "No se pudo guardar la comida: ${error.localizedMessage ?: "error de almacenamiento"}"
-                    }
-                }
-            },
-            onFoodCreated = { refresh++ },
-        )
-    }
-
-    if (showSettings) {
-        SettingsDialog(
-            initialTarget = targetCalories,
-            onDismiss = { showSettings = false },
-            onSave = { value ->
-                targetCalories = value
-                context.getSharedPreferences("settings", 0).edit { putInt("target_calories", value) }
-                showSettings = false
-            },
-            onClear = {
-                scope.launch {
-                    try {
-                        withContext(Dispatchers.IO) { database.clearMeals() }
-                        refresh++
-                        showSettings = false
-                        toast = "Se borraron tus registros de comidas"
-                    } catch (error: Exception) {
-                        toast = "No se pudieron borrar los registros: ${error.localizedMessage ?: "error de almacenamiento"}"
-                    }
-                }
-            },
-        )
-    }
-
-    if (toast != null) {
-        LaunchedEffect(toast) {
-            kotlinx.coroutines.delay(2200)
-            toast = null
-        }
-        androidx.compose.material3.Snackbar(
-            modifier = Modifier.align(Alignment.BottomCenter).padding(12.dp),
-            action = { TextButton(onClick = { toast = null }) { Text("Cerrar") } },
-        ) { Text(toast.orEmpty()) }
-    }
     }
 }
 
@@ -360,165 +411,238 @@ private fun TodayScreen(
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
+        verticalAlignment = Alignment.Top,
     ) {
-        Column {
-            Text(if (day == LocalDate.now()) "TU RESUMEN" else "REGISTRO DIARIO", color = Muted, fontSize = 11.sp, letterSpacing = 1.5.sp)
-            Text(if (day == LocalDate.now()) "Tu día, a tu manera." else day.format(DateTimeFormatter.ofPattern("EEEE d MMMM", SpanishLocale)).replaceFirstChar { it.titlecase(SpanishLocale) }, color = Ink, fontSize = 23.sp, fontWeight = FontWeight.Bold)
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(Spacing.xxs),
+        ) {
+            Eyebrow(if (day == LocalDate.now()) "Tu resumen" else "Registro diario")
+            Text(
+                if (day == LocalDate.now()) {
+                    "Tu día, a tu manera."
+                } else {
+                    day.format(DateTimeFormatter.ofPattern("EEEE d MMMM", SpanishLocale))
+                        .replaceFirstChar { it.titlecase(SpanishLocale) }
+                },
+                style = MaterialTheme.typography.headlineMedium.copy(
+                    fontFamily = androidx.compose.ui.text.font.FontFamily.Serif,
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                ),
+                color = MaterialTheme.colorScheme.onBackground,
+            )
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
-            TextButton(onClick = { onDayChange(day.minusDays(1)) }) { Text("‹") }
-            TextButton(onClick = { onDayChange(LocalDate.now()) }) { Text("Hoy") }
-            TextButton(onClick = { if (day.isBefore(LocalDate.now())) onDayChange(day.plusDays(1)) }) { Text("›") }
+            QuietTextButton(text = "‹", onClick = { onDayChange(day.minusDays(1)) })
+            QuietTextButton(
+                text = "Hoy",
+                onClick = { onDayChange(LocalDate.now()) },
+                color = if (day == LocalDate.now()) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
+            )
+            val canGoForward = day.isBefore(LocalDate.now())
+            QuietTextButton(
+                text = "›",
+                enabled = canGoForward,
+                onClick = { if (canGoForward) onDayChange(day.plusDays(1)) },
+            )
         }
     }
 
-    Card(colors = CardDefaults.cardColors(containerColor = Leaf), shape = RoundedCornerShape(26.dp)) {
-        Column(Modifier.fillMaxWidth().padding(22.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("ENERGÍA REGISTRADA", color = Color(0xFFD8E5D8), fontSize = 11.sp, letterSpacing = 1.4.sp)
-            Row(verticalAlignment = Alignment.Bottom) {
-                Text(calories.toString(), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 46.sp)
-                Spacer(Modifier.width(8.dp))
-                Text("kcal aprox.", color = Color.White.copy(alpha = 0.82f), modifier = Modifier.padding(bottom = 7.dp))
-            }
-            if (target > 0) {
-                Text("Referencia personal: $target kcal · no es una recomendación médica", color = Color.White.copy(alpha = 0.8f), fontSize = 12.sp)
-                LinearProgressIndicator(
-                    progress = { (calories.toFloat() / target).coerceIn(0f, 1f) },
-                    modifier = Modifier.fillMaxWidth().height(8.dp).clip(CircleShape),
-                    color = Color(0xFFE8B08F),
-                    trackColor = Color.White.copy(alpha = 0.22f),
-                )
-            } else {
-                Text("Sin meta configurada · puedes usarlo solo como registro", color = Color.White.copy(alpha = 0.8f), fontSize = 12.sp)
-            }
-            Text("Las cifras son orientativas y dependen de la porción y preparación.", color = Color.White.copy(alpha = 0.76f), fontSize = 11.sp)
-        }
-    }
+    CalorieHeroCard(calories = calories, target = target)
 
-    SectionTitle("Nutrientes", "Suma aproximada del día")
+    SectionHeader(title = "Nutrientes", subtitle = "Suma aproximada del día")
     val total = entries.fold(Nutrition(0, 0, 0, 0)) { sum, entry ->
-        Nutrition(sum.calories + entry.nutrition.calories, sum.protein + entry.nutrition.protein, sum.carbs + entry.nutrition.carbs, sum.fat + entry.nutrition.fat)
+        Nutrition(
+            sum.calories + entry.nutrition.calories,
+            sum.protein + entry.nutrition.protein,
+            sum.carbs + entry.nutrition.carbs,
+            sum.fat + entry.nutrition.fat,
+        )
     }
-    Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-        MacroCard("Proteína", total.protein, Color(0xFF4F7A5A), Modifier.weight(1f))
-        MacroCard("Carbohidratos", total.carbs, Color(0xFFD18C58), Modifier.weight(1f))
-        MacroCard("Grasas", total.fat, Color(0xFF9A715E), Modifier.weight(1f))
+    Row(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+        MacroStat("Proteína", total.protein, ProteinAccent, Modifier.weight(1f))
+        MacroStat("Carbohidratos", total.carbs, CarbsAccent, Modifier.weight(1f))
+        MacroStat("Grasas", total.fat, FatAccent, Modifier.weight(1f))
     }
 
-    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-        SectionTitle("Tus comidas", null)
-        Text("${entries.size} registros", color = Muted, fontSize = 12.sp)
-    }
+    SectionHeader(
+        title = "Tus comidas",
+        trailing = {
+            Text(
+                "${entries.size} registros",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        },
+    )
     if (entries.isEmpty()) {
-        Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(20.dp)) {
-            Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                Text("Tu registro empieza aquí", color = Ink, fontWeight = FontWeight.SemiBold)
-                Text("Agrega una comida o una porción. No necesitas fijarte una meta.", color = Muted, fontSize = 13.sp)
-            }
-        }
+        EmptyStateCard(
+            title = "Tu registro empieza aquí",
+            body = "Agrega una comida o una porción. No necesitas fijarte una meta.",
+        )
     } else {
-        entries.forEach { entry ->
-            MealRow(entry, onDelete = { onDelete(entry.id) })
-        }
-    }
-}
-
-@Composable
-private fun SectionTitle(title: String, subtitle: String?) {
-    Column {
-        Text(title, color = Ink, fontSize = 19.sp, fontWeight = FontWeight.Bold)
-        if (subtitle != null) Text(subtitle, color = Muted, fontSize = 12.sp)
-    }
-}
-
-@Composable
-private fun MacroCard(title: String, amount: Int, tint: Color, modifier: Modifier) {
-    Card(modifier = modifier, colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(18.dp)) {
-        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-            Text(title, color = Muted, fontSize = 10.sp, maxLines = 1)
-            Text("${amount}g", color = Ink, fontWeight = FontWeight.Bold, fontSize = 20.sp)
-            Spacer(Modifier.height(1.dp))
-            Spacer(Modifier.height(4.dp).fillMaxWidth().clip(CircleShape).background(tint))
+        Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+            entries.forEach { entry ->
+                MealRow(entry, onDelete = { onDelete(entry.id) })
+            }
         }
     }
 }
 
 @Composable
 private fun MealRow(entry: MealEntry, onDelete: () -> Unit) {
-    Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(18.dp)) {
+    AppCard {
         Row(
-            Modifier.fillMaxWidth().padding(horizontal = 15.dp, vertical = 13.dp),
+            Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Column(Modifier.weight(1f)) {
-                Text(entry.foodName, color = Ink, fontWeight = FontWeight.SemiBold)
-                Text("${entry.meal} · ${entry.grams} g · ${entry.nutrition.protein}g proteína", color = Muted, fontSize = 12.sp)
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    entry.foodName,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                Text(
+                    "${entry.meal} · ${entry.grams} g · ${entry.nutrition.protein}g proteína",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
             Column(horizontalAlignment = Alignment.End) {
-                Text("~${entry.nutrition.calories} kcal", color = Leaf, fontWeight = FontWeight.Bold)
-                TextButton(onClick = onDelete) { Text("Quitar", fontSize = 11.sp) }
+                Text(
+                    "~${entry.nutrition.calories}",
+                    style = NumericTitle,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                Text(
+                    "kcal",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                QuietTextButton(
+                    text = "Quitar",
+                    onClick = onDelete,
+                    color = MaterialTheme.colorScheme.error,
+                )
             }
         }
     }
 }
 
 @Composable
-private fun HistoryScreen(selectedDay: LocalDate, database: FoodDatabase, onSelectDay: (LocalDate) -> Unit) {
-    val days = remember(selectedDay) { (0L..6L).map { LocalDate.now().minusDays(it) } }
+private fun HistoryScreen(
+    selectedDay: LocalDate,
+    database: FoodDatabase,
+    refresh: Int,
+    onSelectDay: (LocalDate) -> Unit,
+) {
+    val days = remember { (0L..6L).map { LocalDate.now().minusDays(it) } }
     var totals by remember { mutableStateOf<Map<LocalDate, Int>>(emptyMap()) }
-    LaunchedEffect(days) {
+    LaunchedEffect(days, refresh) {
         totals = withContext(Dispatchers.IO) { days.associateWith(database::dailyCalories) }
     }
-    SectionTitle("Tu historial", "Registros en este dispositivo")
-    days.forEach { day ->
-        val total = totals[day] ?: 0
-        Card(
-            onClick = { onSelectDay(day) },
-            colors = CardDefaults.cardColors(containerColor = if (day == selectedDay) PaleGreen else Color.White),
-            shape = RoundedCornerShape(18.dp),
-        ) {
-            Row(Modifier.fillMaxWidth().padding(17.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                Column {
-                    Text(dayLabel(day), color = Ink, fontWeight = FontWeight.SemiBold)
-                    Text(if (total == 0) "Sin registros" else "$total kcal aprox.", color = Muted, fontSize = 12.sp)
+    SectionHeader(title = "Tu historial", subtitle = "Registros en este dispositivo")
+    Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+        days.forEach { day ->
+            val total = totals[day] ?: 0
+            AppCard(
+                onClick = { onSelectDay(day) },
+                highlighted = day == selectedDay,
+            ) {
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(
+                            dayLabel(day),
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                        Text(
+                            if (total == 0) "Sin registros" else "$total kcal aprox.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Text(
+                        "Ver día",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
                 }
-                Text("Ver día →", color = Leaf, fontSize = 12.sp)
             }
         }
     }
 }
 
 @Composable
-private fun FoodLibraryScreen(database: FoodDatabase) {
+private fun FoodLibraryScreen(database: FoodDatabase, refresh: Int) {
     var query by rememberSaveable { mutableStateOf("") }
-    val foods = remember(query) { database.searchFoods(query) }
-    SectionTitle("Alimentos", "Referencias genéricas por cada 100 g")
-    TextField(
+    var foods by remember { mutableStateOf(emptyList<Food>()) }
+    LaunchedEffect(query, refresh) {
+        foods = withContext(Dispatchers.IO) { database.searchFoods(query) }
+    }
+    SectionHeader(title = "Alimentos", subtitle = "Referencias genéricas por cada 100 g")
+    SoftTextField(
         value = query,
         onValueChange = { query = it },
-        modifier = Modifier.fillMaxWidth(),
-        placeholder = { Text("Buscar alimento") },
-        singleLine = true,
+        placeholder = "Buscar alimento",
     )
-    Text("Los productos, recetas y métodos de cocción varían. Contrasta con la etiqueta del alimento.", color = Muted, fontSize = 12.sp)
-    foods.forEach { food ->
-        Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(16.dp)) {
-            Row(Modifier.fillMaxWidth().padding(15.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                Column(Modifier.weight(1f)) {
-                    Text(food.name, color = Ink, fontWeight = FontWeight.SemiBold)
-                    Text("P ${food.proteinPer100g.toInt()}g · C ${food.carbsPer100g.toInt()}g · G ${food.fatPer100g.toInt()}g", color = Muted, fontSize = 12.sp)
+    Text(
+        "Los productos, recetas y métodos de cocción varían. Contrasta con la etiqueta del alimento.",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+    Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+        foods.forEach { food ->
+            AppCard {
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(
+                            food.name,
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                        Text(
+                            "P ${food.proteinPer100g.toInt()}g · C ${food.carbsPer100g.toInt()}g · G ${food.fatPer100g.toInt()}g",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text(
+                            "~${food.caloriesPer100g.toInt()}",
+                            style = NumericTitle,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                        Text(
+                            "kcal",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
-                Text("~${food.caloriesPer100g.toInt()} kcal", color = Leaf, fontWeight = FontWeight.Bold)
             }
         }
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun FoodEntryDialog(
     database: FoodDatabase,
+    refresh: Int,
     recognizedLabels: List<String>,
     recognitionError: String?,
     onPickPhoto: () -> Unit,
@@ -528,90 +652,201 @@ private fun FoodEntryDialog(
     onFoodCreated: () -> Unit,
 ) {
     var query by rememberSaveable { mutableStateOf("") }
-    var selectedFoodId by rememberSaveable { mutableStateOf(0L) }
+    var selectedFood by remember { mutableStateOf<Food?>(null) }
     var grams by rememberSaveable { mutableStateOf("100") }
     var meal by rememberSaveable { mutableStateOf("Comida") }
     var showCreateFood by rememberSaveable { mutableStateOf(false) }
-    val foods = remember(query) { database.searchFoods(query) }
-    val selectedFood = foods.firstOrNull { it.id == selectedFoodId }
+    var isSaving by remember { mutableStateOf(false) }
+    var foods by remember { mutableStateOf(emptyList<Food>()) }
+
+    LaunchedEffect(query, refresh) {
+        foods = withContext(Dispatchers.IO) { database.searchFoods(query) }
+    }
+
     val portion = grams.toIntOrNull()?.takeIf { it in 1..5000 }
-    val estimate = if (selectedFood != null && portion != null) NutritionEstimator.forPortion(selectedFood!!, portion) else null
+    val estimate = if (selectedFood != null && portion != null) {
+        NutritionEstimator.forPortion(selectedFood!!, portion)
+    } else {
+        null
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Agregar comida") },
+        containerColor = MaterialTheme.colorScheme.surface,
+        titleContentColor = MaterialTheme.colorScheme.onSurface,
+        textContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+        shape = MaterialTheme.shapes.large,
+        title = {
+            Column(verticalArrangement = Arrangement.spacedBy(Spacing.xxs)) {
+                Eyebrow("Registro")
+                Text("Agregar comida", style = MaterialTheme.typography.headlineSmall)
+            }
+        },
         text = {
             Column(
-                Modifier.fillMaxWidth().heightIn(max = 440.dp).verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(9.dp),
+                Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 460.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(Spacing.sm),
             ) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = onTakePhoto) { Text("Tomar foto") }
-                    OutlinedButton(onClick = onPickPhoto) { Text("Elegir foto") }
+                // Camera / gallery — visual chrome only; capture pipeline unchanged.
+                Row(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                    SecondaryButton(
+                        text = "Tomar foto",
+                        onClick = onTakePhoto,
+                        modifier = Modifier.weight(1f),
+                    )
+                    SecondaryButton(
+                        text = "Elegir foto",
+                        onClick = onPickPhoto,
+                        modifier = Modifier.weight(1f),
+                    )
                 }
-                Text("La foto genera etiquetas visuales, no una medición nutricional. Confirma alimento, ingredientes y porción.", color = Muted, fontSize = 11.sp)
-                if (recognitionError != null) Text(recognitionError, color = Color(0xFF9E392E), fontSize = 12.sp)
+                Text(
+                    "La foto genera etiquetas visuales, no una medición nutricional. Confirma alimento, ingredientes y porción.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                if (recognitionError != null) {
+                    Text(
+                        recognitionError,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
                 if (recognizedLabels.isNotEmpty()) {
-                    Text("Etiquetas sugeridas (no confirmadas):", color = Leaf, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
-                    Text(recognizedLabels.joinToString(" · "), color = Ink, fontSize = 12.sp)
-                    Text("Escribe abajo lo que reconociste; el modelo no identifica cantidades ni ingredientes ocultos.", color = Muted, fontSize = 11.sp)
-                    recognizedLabels.take(4).forEach { label ->
-                        TextButton(
-                            onClick = {
-                                query = label
-                                selectedFoodId = 0L
-                            },
-                        ) { Text("Buscar “$label”") }
+                    Text(
+                        "Etiquetas sugeridas (no confirmadas)",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                    Text(
+                        recognizedLabels.joinToString(" · "),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Text(
+                        "Escribe abajo lo que reconociste; el modelo no identifica cantidades ni ingredientes ocultos.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+                        verticalArrangement = Arrangement.spacedBy(Spacing.xs),
+                    ) {
+                        recognizedLabels.take(4).forEach { label ->
+                            SuggestionBadge(
+                                text = label,
+                                onClick = {
+                                    query = label
+                                    selectedFood = null
+                                },
+                            )
+                        }
                     }
                 }
-                OutlinedTextField(
+                SoftOutlinedField(
                     value = query,
-                    onValueChange = { query = it; selectedFoodId = 0L },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text("Buscar alimento o ingrediente") },
-                    singleLine = true,
+                    onValueChange = { query = it; selectedFood = null },
+                    label = "Buscar alimento o ingrediente",
                 )
                 foods.take(8).forEach { food ->
-                    TextButton(
-                        onClick = { selectedFoodId = food.id; query = food.name },
-                        modifier = Modifier.fillMaxWidth(),
+                    val selected = selectedFood?.id == food.id
+                    AppCard(
+                        onClick = { selectedFood = food; query = food.name },
+                        highlighted = selected,
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                            horizontal = Spacing.sm,
+                            vertical = Spacing.sm,
+                        ),
                     ) {
-                        Text("${food.name} · ~${food.caloriesPer100g.toInt()} kcal/100 g", modifier = Modifier.fillMaxWidth(), color = if (selectedFood?.id == food.id) Leaf else Ink)
+                        Text(
+                            "${food.name} · ~${food.caloriesPer100g.toInt()} kcal/100 g",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = if (selected) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.onSurface
+                            },
+                        )
                     }
                 }
                 if (query.isNotBlank() && foods.none { it.name.equals(query, ignoreCase = true) }) {
-                    TextButton(onClick = { showCreateFood = true }) { Text("Crear “$query” con tus valores") }
+                    QuietTextButton(
+                        text = "Crear “$query” con tus valores",
+                        onClick = { showCreateFood = true },
+                        color = MaterialTheme.colorScheme.primary,
+                    )
                 }
                 if (selectedFood != null) {
-                    HorizontalDivider()
-                    Text("Porción y comida", color = Ink, fontWeight = FontWeight.SemiBold)
-                    OutlinedTextField(
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+                    Text(
+                        "Porción y comida",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                    SoftOutlinedField(
                         value = grams,
                         onValueChange = { grams = it.filter(Char::isDigit).take(4) },
-                        label = { Text("Cantidad en gramos") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        singleLine = true,
+                        label = "Cantidad en gramos",
+                        keyboardType = KeyboardType.Number,
                     )
-                    Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+                        verticalArrangement = Arrangement.spacedBy(Spacing.xs),
+                    ) {
                         listOf("Desayuno", "Comida", "Cena", "Colación").forEach { option ->
-                            TextButton(onClick = { meal = option }) { Text(option, color = if (meal == option) Leaf else Muted, fontSize = 10.sp) }
+                            Chip(
+                                label = option,
+                                selected = meal == option,
+                                onClick = { meal = option },
+                            )
                         }
                     }
                     if (estimate != null) {
-                        Text("Estimación para ${portion} g: ~${estimate.calories} kcal · P ${estimate.protein} g · C ${estimate.carbs} g · G ${estimate.fat} g", color = Leaf, fontSize = 12.sp)
+                        AppCard {
+                            Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                                Eyebrow("Estimación nutricional")
+                                Text(
+                                    "~${estimate.calories} kcal",
+                                    style = MaterialTheme.typography.headlineSmall,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                )
+                                Text(
+                                    "Para ${portion} g · P ${estimate.protein} g · C ${estimate.carbs} g · G ${estimate.fat} g",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
                     } else {
-                        Text("Escribe una porción entre 1 y 5000 g.", color = Muted, fontSize = 12.sp)
+                        Text(
+                            "Escribe una porción entre 1 y 5000 g.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                     }
                 }
             }
         },
         confirmButton = {
-            Button(
-                enabled = selectedFood != null && estimate != null,
-                onClick = { selectedFood?.let { food -> portion?.let { onAdd(food, it, meal) } } },
-            ) { Text("Guardar registro") }
+            PrimaryButton(
+                text = "Guardar registro",
+                enabled = selectedFood != null && estimate != null && !isSaving,
+                onClick = {
+                    val foodToSave = selectedFood
+                    val portionToSave = portion
+                    if (foodToSave != null && portionToSave != null && !isSaving) {
+                        isSaving = true
+                        onAdd(foodToSave, portionToSave, meal)
+                    }
+                },
+            )
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cerrar") } },
+        dismissButton = {
+            QuietTextButton(text = "Cerrar", onClick = onDismiss)
+        },
     )
     if (showCreateFood) {
         CreateFoodDialog(
@@ -619,7 +854,7 @@ private fun FoodEntryDialog(
             database = database,
             onDismiss = { showCreateFood = false },
             onCreated = { food ->
-                selectedFoodId = food.id
+                selectedFood = food
                 query = food.name
                 showCreateFood = false
                 onFoodCreated()
@@ -643,57 +878,90 @@ private fun CreateFoodDialog(
     var error by rememberSaveable { mutableStateOf<String?>(null) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Crear referencia") },
+        containerColor = MaterialTheme.colorScheme.surface,
+        shape = MaterialTheme.shapes.large,
+        title = {
+            Column(verticalArrangement = Arrangement.spacedBy(Spacing.xxs)) {
+                Eyebrow("Referencia")
+                Text("Crear alimento", style = MaterialTheme.typography.headlineSmall)
+            }
+        },
         text = {
             Column(
                 Modifier.heightIn(max = 440.dp).verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(6.dp),
+                verticalArrangement = Arrangement.spacedBy(Spacing.sm),
             ) {
-                Text("Ingresa valores por 100 g desde una etiqueta o una fuente que elijas.", color = Muted, fontSize = 12.sp)
-                OutlinedTextField(name, { name = it }, label = { Text("Alimento") }, singleLine = true)
-                NumericField("Calorías (kcal)", calories) { calories = it }
-                NumericField("Proteína (g)", protein) { protein = it }
-                NumericField("Carbohidratos (g)", carbs) { carbs = it }
-                NumericField("Grasas (g)", fat) { fat = it }
-                if (error != null) Text(error.orEmpty(), color = Color(0xFF9E392E), fontSize = 12.sp)
+                Text(
+                    "Ingresa valores por 100 g desde una etiqueta o una fuente que elijas.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                SoftOutlinedField(value = name, onValueChange = { name = it }, label = "Alimento")
+                SoftOutlinedField(
+                    value = calories,
+                    onValueChange = { calories = it.filter { ch -> ch.isDigit() || ch == '.' }.take(7) },
+                    label = "Calorías (kcal)",
+                    keyboardType = KeyboardType.Decimal,
+                )
+                SoftOutlinedField(
+                    value = protein,
+                    onValueChange = { protein = it.filter { ch -> ch.isDigit() || ch == '.' }.take(7) },
+                    label = "Proteína (g)",
+                    keyboardType = KeyboardType.Decimal,
+                )
+                SoftOutlinedField(
+                    value = carbs,
+                    onValueChange = { carbs = it.filter { ch -> ch.isDigit() || ch == '.' }.take(7) },
+                    label = "Carbohidratos (g)",
+                    keyboardType = KeyboardType.Decimal,
+                )
+                SoftOutlinedField(
+                    value = fat,
+                    onValueChange = { fat = it.filter { ch -> ch.isDigit() || ch == '.' }.take(7) },
+                    label = "Grasas (g)",
+                    keyboardType = KeyboardType.Decimal,
+                )
+                if (error != null) {
+                    Text(
+                        error.orEmpty(),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
             }
         },
         confirmButton = {
-            Button(onClick = {
-                val values = listOf(calories, protein, carbs, fat).map { it.toDoubleOrNull() }
-                if (name.isBlank() || values.any { it == null }) {
-                    error = "Completa el nombre y los cuatro valores."
-                } else {
-                    try {
-                        val food = database.addCustomFood(
-                            Food(
-                                name = name,
-                                caloriesPer100g = values[0]!!,
-                                proteinPer100g = values[1]!!,
-                                carbsPer100g = values[2]!!,
-                                fatPer100g = values[3]!!,
-                                custom = true,
-                            ),
-                        )
-                        onCreated(food)
-                    } catch (exception: Exception) {
-                        error = exception.message ?: "No se pudo guardar; revisa si el alimento ya existe."
+            PrimaryButton(
+                text = "Guardar",
+                onClick = {
+                    val values = listOf(calories, protein, carbs, fat).map { it.toDoubleOrNull() }
+                    if (name.isBlank() || values.any { it == null }) {
+                        error = "Completa el nombre y los cuatro valores."
+                    } else {
+                        try {
+                            val food = database.addCustomFood(
+                                Food(
+                                    name = name,
+                                    caloriesPer100g = values[0]!!,
+                                    proteinPer100g = values[1]!!,
+                                    carbsPer100g = values[2]!!,
+                                    fatPer100g = values[3]!!,
+                                    custom = true,
+                                ),
+                            )
+                            onCreated(food)
+                        } catch (exception: android.database.sqlite.SQLiteConstraintException) {
+                            error = "Ya existe un alimento con el nombre “${name.trim()}”."
+                        } catch (exception: Exception) {
+                            error = exception.message ?: "No se pudo guardar el alimento."
+                        }
                     }
-                }
-            }) { Text("Guardar") }
+                },
+            )
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } },
-    )
-}
-
-@Composable
-private fun NumericField(label: String, value: String, onChange: (String) -> Unit) {
-    OutlinedTextField(
-        value = value,
-        onValueChange = { new -> onChange(new.filter { it.isDigit() || it == '.' }.take(7)) },
-        label = { Text(label) },
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-        singleLine = true,
+        dismissButton = {
+            QuietTextButton(text = "Cancelar", onClick = onDismiss)
+        },
     )
 }
 
@@ -710,67 +978,176 @@ private fun SettingsDialog(
     var showPrivacy by rememberSaveable { mutableStateOf(false) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Preferencias y privacidad") },
+        containerColor = MaterialTheme.colorScheme.surface,
+        shape = MaterialTheme.shapes.large,
+        title = {
+            Column(verticalArrangement = Arrangement.spacedBy(Spacing.xxs)) {
+                Eyebrow("Preferencias")
+                Text("Ajustes y privacidad", style = MaterialTheme.typography.headlineSmall)
+            }
+        },
         text = {
             Column(
                 Modifier.heightIn(max = 440.dp).verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
+                verticalArrangement = Arrangement.spacedBy(Spacing.sm),
             ) {
-                Text("Meta opcional", color = Ink, fontWeight = FontWeight.SemiBold)
-                Text("Es una referencia que tú eliges, no una recomendación, y puede no ser adecuada para todas las personas. Puedes dejarla vacía; no se aceptan metas inferiores a 1200 kcal.", color = Muted, fontSize = 12.sp)
-                OutlinedTextField(
+                Text(
+                    "Meta opcional",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                Text(
+                    "Es una referencia que tú eliges, no una recomendación, y puede no ser adecuada para todas las personas. Puedes dejarla vacía; no se aceptan metas inferiores a 1200 kcal.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                SoftOutlinedField(
                     value = value,
                     onValueChange = { value = it.filter(Char::isDigit).take(5) },
-                    label = { Text("Referencia kcal/día (opcional)") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    singleLine = true,
+                    label = "Referencia kcal/día (opcional)",
+                    keyboardType = KeyboardType.Number,
                 )
-                if (error != null) Text(error.orEmpty(), color = Color(0xFF9E392E), fontSize = 12.sp)
-                Text("Tus registros permanecen en el dispositivo. Las fotos se analizan localmente, se descartan y no se envían a un servidor.", color = Muted, fontSize = 12.sp)
-                TextButton(onClick = { showPrivacy = true }) { Text("Leer aviso de privacidad") }
-                TextButton(onClick = { confirmClear = true }) { Text("Borrar todos mis registros", color = Color(0xFF9E392E)) }
+                if (error != null) {
+                    Text(
+                        error.orEmpty(),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
+                HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+                Text(
+                    "Tus registros permanecen en el dispositivo. Las fotos se analizan localmente, se descartan y no se envían a un servidor.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                QuietTextButton(
+                    text = "Leer aviso de privacidad",
+                    onClick = { showPrivacy = true },
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                QuietTextButton(
+                    text = "Borrar todos mis registros",
+                    onClick = { confirmClear = true },
+                    color = MaterialTheme.colorScheme.error,
+                )
             }
         },
         confirmButton = {
-            Button(onClick = {
-                val parsed = value.toIntOrNull()
-                when {
-                    value.isBlank() -> onSave(0)
-                    parsed == null || parsed !in 1200..10000 -> error = "Usa un valor entre 1200 y 10000, o deja el campo vacío."
-                    else -> onSave(parsed)
-                }
-            }) { Text("Guardar") }
+            PrimaryButton(
+                text = "Guardar",
+                onClick = {
+                    val parsed = value.toIntOrNull()
+                    when {
+                        value.isBlank() -> onSave(0)
+                        parsed == null || parsed !in 1200..10000 ->
+                            error = "Usa un valor entre 1200 y 10000, o deja el campo vacío."
+                        else -> onSave(parsed)
+                    }
+                },
+            )
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cerrar") } },
+        dismissButton = {
+            QuietTextButton(text = "Cerrar", onClick = onDismiss)
+        },
     )
     if (confirmClear) {
         AlertDialog(
             onDismissRequest = { confirmClear = false },
-            title = { Text("¿Borrar todos los registros?") },
-            text = { Text("Esta acción elimina el historial de comidas de este dispositivo y no se puede deshacer.") },
-            confirmButton = {
-                Button(onClick = {
-                    confirmClear = false
-                    onClear()
-                }) { Text("Borrar registros") }
+            containerColor = MaterialTheme.colorScheme.surface,
+            shape = MaterialTheme.shapes.large,
+            title = { Text("¿Borrar todos los registros?", style = MaterialTheme.typography.headlineSmall) },
+            text = {
+                Text(
+                    "Esta acción elimina el historial de comidas de este dispositivo y no se puede deshacer.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             },
-            dismissButton = { TextButton(onClick = { confirmClear = false }) { Text("Cancelar") } },
+            confirmButton = {
+                PrimaryButton(
+                    text = "Borrar registros",
+                    onClick = {
+                        confirmClear = false
+                        onClear()
+                    },
+                )
+            },
+            dismissButton = {
+                QuietTextButton(text = "Cancelar", onClick = { confirmClear = false })
+            },
         )
     }
     if (showPrivacy) {
         AlertDialog(
             onDismissRequest = { showPrivacy = false },
-            title = { Text("Aviso de privacidad") },
+            containerColor = MaterialTheme.colorScheme.surface,
+            shape = MaterialTheme.shapes.large,
+            title = { Text("Aviso de privacidad", style = MaterialTheme.typography.headlineSmall) },
             text = {
                 Text(
                     "Tus alimentos y preferencias se guardan en la base local privada de la app. Las fotos se analizan en el dispositivo y se descartan; MISCALORIAS no tiene cuenta ni permiso de Internet. Puedes borrar el historial en Ajustes o al desinstalar. La cámara y el selector de fotos dependen de las apps del sistema.",
-                    color = Muted,
-                    fontSize = 13.sp,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             },
-            confirmButton = { TextButton(onClick = { showPrivacy = false }) { Text("Entendido") } },
+            confirmButton = {
+                QuietTextButton(text = "Entendido", onClick = { showPrivacy = false })
+            },
         )
     }
+}
+
+@Composable
+private fun SoftTextField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    placeholder: String,
+) {
+    TextField(
+        value = value,
+        onValueChange = onValueChange,
+        modifier = Modifier.fillMaxWidth(),
+        placeholder = {
+            Text(placeholder, style = MaterialTheme.typography.bodyMedium)
+        },
+        singleLine = true,
+        textStyle = MaterialTheme.typography.bodyLarge,
+        shape = MaterialTheme.shapes.medium,
+        colors = TextFieldDefaults.colors(
+            focusedContainerColor = MaterialTheme.colorScheme.surface,
+            unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+            disabledContainerColor = MaterialTheme.colorScheme.surface,
+            focusedIndicatorColor = MaterialTheme.colorScheme.primary,
+            unfocusedIndicatorColor = MaterialTheme.colorScheme.outline,
+            cursorColor = MaterialTheme.colorScheme.primary,
+        ),
+    )
+}
+
+@Composable
+private fun SoftOutlinedField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+    keyboardType: KeyboardType = KeyboardType.Text,
+) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        modifier = Modifier.fillMaxWidth(),
+        label = { Text(label) },
+        singleLine = true,
+        textStyle = MaterialTheme.typography.bodyLarge,
+        keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
+        shape = MaterialTheme.shapes.medium,
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedBorderColor = MaterialTheme.colorScheme.primary,
+            unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+            cursorColor = MaterialTheme.colorScheme.primary,
+            focusedLabelColor = MaterialTheme.colorScheme.primary,
+            unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+        ),
+    )
 }
 
 private fun dayLabel(day: LocalDate): String = when (day) {

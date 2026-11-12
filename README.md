@@ -39,13 +39,23 @@ Requiere JDK 17 y Android SDK Platform/Build Tools 36. Las herramientas de compi
 .\gradlew.bat bundleRelease
 ```
 
+### Vista rápida en el navegador
+
+Para ver e interactuar con la app Android real desde una página local, ejecuta:
+
+```powershell
+.\preview.bat
+```
+
+También puedes abrir `preview.bat` con doble clic. El comando compila, inicia el emulador sin ventana y abre `http://localhost:8765`. Puedes tocar, deslizar y escribir en la pantalla desde el navegador. La primera ejecución puede tardar mientras inicia Android; después usa `.\stop-preview.bat` para cerrar el servidor y el emulador iniciado por este comando. No instala paquetes de npm; usa Node.js y el SDK ya configurado en este equipo. El servidor escucha solo en tu computadora.
+
 Para compilar, iniciar el emulador Android e instalar/abrir la app desde PowerShell en la carpeta del proyecto, ejecuta:
 
 ```powershell
 .\start.bat
 ```
 
-La primera ejecución crea el AVD local `MISCALORIAS_API_37` y puede tardar varios minutos. Es una app nativa: se muestra en la ventana del emulador, no en `localhost`. El lanzador centra la ventana en la pantalla principal para que la barra de título quede accesible; después puedes moverla arrastrando esa barra. En tu PowerShell, escribe `start` desde esta carpeta. También puedes usar `.\start.bat`; tras modificar el perfil, abre una consola nueva para cargar el atajo.
+La primera ejecución crea el AVD local `MISCALORIAS_API_37` y puede tardar mientras inicia Android. `start`, `.\start.bat` y `.\preview.bat` abren la misma vista localhost; ya no se abre la ventana tradicional del emulador. El atajo `start` se instala en el perfil de Windows PowerShell; abre una consola nueva (o ejecuta `. $PROFILE.CurrentUserAllHosts`) para cargarlo. Fuera de esta carpeta, `start` conserva el comportamiento normal de PowerShell.
 
 `bundleRelease` sin una configuración de firma de publicación produce un AAB no firmado. Para firmar con una clave de carga que controles, configura `MISCALORIAS_KEYSTORE_PATH`, `MISCALORIAS_KEYSTORE_PASSWORD`, `MISCALORIAS_KEY_ALIAS` y `MISCALORIAS_KEY_PASSWORD` en el entorno local seguro y vuelve a ejecutar `bundleRelease`. No guardes estas variables en el repositorio ni uses una clave de depuración. Habilita Play App Signing en Play Console.
 

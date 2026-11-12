@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="MiscaloriasThemeApi27" parent="@style/MiscaloriasThemeBase">
+        <item name="android:windowLightNavigationBar">false</item>
+    </style>
+    <style name="Theme.Miscalorias" parent="@style/MiscaloriasThemeApi27" />
+</resources>
